@@ -1,6 +1,31 @@
-# TODO: container runtime:
-#   - install containerd from Fedora repos
-#   - generate /etc/containerd/config.toml with SystemdCgroup = true
-#     (must match kubelet's cgroup driver; mismatch = cryptic kubelet crashloops)
-#   - enable + start containerd
-[]
+---
+- name: Install containerd
+  ansible.builtin.dnf:
+    name: containerd
+    state: present
+
+# Fedora's packaged config.toml historically ships with the CRI plugin
+# disabled — kubelet needs it, so start from containerd's own defaults.
+- name: Replace packaged config with containerd defaults
+  ansible.builtin.shell: |
+    set -e
+    containerd config default > /etc/containerd/config.toml
+    touch /etc/containerd/.defaults-generated
+  args:
+    creates: /etc/containerd/.defaults-generated
+  notify: Restart containerd
+
+# Must match kubelet's cgroup driver (systemd) or pods crashloop with
+# cryptic sandbox errors.
+- name: Use the systemd cgroup driver
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: Restart containerd
+
+- name: Enable and start containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    enabled: true
+    state: started

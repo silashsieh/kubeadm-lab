@@ -1,8 +1,136 @@
-# TODO: HA control plane (design pending — API endpoint decision):
-#   - first CP node: kubeadm init --control-plane-endpoint {{ control_plane_endpoint }}
-#     --pod-network-cidr {{ pod_network_cidr }} --upload-certs
-#   - kube-vip static pod manifest (if the VIP decision lands on kube-vip)
-#   - install the chosen CNI ({{ cni }})
-#   - remaining CP nodes: kubeadm join --control-plane with cert key
-#   - idempotency guard: skip init/join when /etc/kubernetes/kubelet.conf exists
-[]
+---
+# Bootstrap an HA control plane behind the kube-vip VIP.
+
+- name: Check whether this node already initialized/joined
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: Ensure static pod manifest dir exists
+  ansible.builtin.file:
+    path: /etc/kubernetes/manifests
+    state: directory
+    mode: "0755"
+
+# --- First control-plane node --------------------------------------------
+- name: Bootstrap first control-plane node
+  when: inventory_hostname == groups['control_plane'][0]
+  block:
+    # Chicken-and-egg: kube-vip needs API credentials, but the API endpoint
+    # IS the VIP. On K8s >= 1.29 admin.conf starts without cluster-admin, so
+    # first boot uses super-admin.conf (kube-vip's documented workaround);
+    # switched to admin.conf right after init.
+    - name: Place kube-vip static pod (bootstrap kubeconfig)
+      ansible.builtin.template:
+        src: kube-vip.yaml.j2
+        dest: /etc/kubernetes/manifests/kube-vip.yaml
+        mode: "0600"
+      vars:
+        kube_vip_kubeconfig: /etc/kubernetes/super-admin.conf
+      when: not kubelet_conf.stat.exists
+
+    # The preflight override is solely for the kube-vip manifest placed above.
+    - name: Kubeadm init
+      ansible.builtin.command: >
+        kubeadm init
+        --control-plane-endpoint {{ control_plane_endpoint }}
+        --pod-network-cidr {{ pod_network_cidr }}
+        --service-cidr {{ service_cidr }}
+        --upload-certs
+        --ignore-preflight-errors=DirAvailable--etc-kubernetes-manifests
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+
+    - name: Switch kube-vip to admin.conf now that init granted it
+      ansible.builtin.template:
+        src: kube-vip.yaml.j2
+        dest: /etc/kubernetes/manifests/kube-vip.yaml
+        mode: "0600"
+      vars:
+        kube_vip_kubeconfig: /etc/kubernetes/admin.conf
+
+    - name: Wait for the API server to answer on the VIP
+      ansible.builtin.uri:
+        url: "https://{{ control_plane_endpoint }}/healthz"
+        validate_certs: false
+        return_content: true
+      register: vip_health
+      retries: 30
+      delay: 5
+      until: vip_health.status | default(0) == 200
+
+    - name: Install the Tigera operator (Calico {{ calico_version }})
+      ansible.builtin.command: >
+        kubectl create -f
+        https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: tigera
+      changed_when: tigera.rc == 0
+      failed_when: tigera.rc != 0 and 'AlreadyExists' not in tigera.stderr
+
+    - name: Render Calico Installation CR
+      ansible.builtin.template:
+        src: calico-installation.yaml.j2
+        dest: /etc/kubernetes/calico-installation.yaml
+        mode: "0600"
+
+    - name: Apply Calico Installation CR
+      ansible.builtin.command: kubectl apply -f /etc/kubernetes/calico-installation.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: calico_apply
+      changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
+
+    - name: Fetch admin kubeconfig to the control Mac (gitignored)
+      ansible.builtin.fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ playbook_dir }}/kubeconfig"
+        flat: true
+
+# --- Remaining control-plane nodes ----------------------------------------
+- name: Join additional control-plane node
+  when:
+    - inventory_hostname != groups['control_plane'][0]
+    - not kubelet_conf.stat.exists
+  block:
+    - name: Create a fresh join token on the first control plane
+      ansible.builtin.command: kubeadm token create --print-join-command --ttl 30m
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      register: join_command
+      changed_when: false
+
+    - name: Re-upload control-plane certs and capture the certificate key
+      ansible.builtin.command: kubeadm init phase upload-certs --upload-certs
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      register: cert_upload
+      changed_when: false
+
+    # Concurrent control-plane joins race on etcd member addition.
+    - name: Join as control plane (one node at a time)
+      ansible.builtin.command: >
+        {{ join_command.stdout }}
+        --control-plane
+        --certificate-key {{ cert_upload.stdout_lines[-1] }}
+      args:
+        creates: /etc/kubernetes/kubelet.conf
+      throttle: 1
+
+# kubeadm preflight refuses a non-empty manifests dir, so on joining CP
+# nodes kube-vip lands AFTER the join — the VIP is already served by the
+# first node while they join, so there is no gap.
+- name: Place kube-vip static pod on joined control-plane nodes
+  ansible.builtin.template:
+    src: kube-vip.yaml.j2
+    dest: /etc/kubernetes/manifests/kube-vip.yaml
+    mode: "0600"
+  vars:
+    kube_vip_kubeconfig: /etc/kubernetes/admin.conf
+  when: inventory_hostname != groups['control_plane'][0]
+
+- name: Make kubectl work for root on control-plane nodes
+  ansible.builtin.lineinfile:
+    path: /root/.bashrc
+    line: export KUBECONFIG=/etc/kubernetes/admin.conf
+    create: true
+    mode: "0644"

@@ -1,2 +1,4 @@
 *.iso
 .DS_Store
+# fetched cluster admin credentials — never commit
+ansible/kubeconfig

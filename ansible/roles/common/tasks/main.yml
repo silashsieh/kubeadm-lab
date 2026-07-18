@@ -1,9 +1,83 @@
-# TODO: OS prep every node needs before anything K8s-shaped:
-#   - set hostname from inventory_hostname (identity arrives here, not in the image)
-#   - remove zram-generator-defaults + mask swap (kubelet refuses to start with swap on;
-#     plain `swapoff -a` does NOT survive reboot against Fedora's zram)
-#   - load br_netfilter + overlay kernel modules, persist in /etc/modules-load.d
-#   - sysctls: net.bridge.bridge-nf-call-iptables=1, net.ipv4.ip_forward=1
-#   - firewalld policy: open the kubeadm port matrix (6443, 2379-2380, 10250,
-#     NodePort range 30000-32767) + CNI ports, or disable — explicit either way
-[]
+---
+# OS prep: everything a bare kickstarted Fedora node needs before kubeadm.
+
+- name: Set hostname from inventory (identity arrives here, not in the image)
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+# kubelet refuses to start with swap active. Plain `swapoff -a` does not
+# survive reboot against Fedora's default swap-on-zram — the generator must go.
+- name: Remove Fedora's default swap-on-zram
+  ansible.builtin.dnf:
+    name: zram-generator-defaults
+    state: absent
+
+- name: Turn off any active swap for this boot
+  ansible.builtin.command: swapoff -a
+  when: ansible_swaptotal_mb | int > 0
+  changed_when: true
+
+- name: Install host tools kubeadm/kube-proxy expect
+  ansible.builtin.dnf:
+    name:
+      - iproute-tc
+      - iptables-nft
+      - conntrack-tools
+      - socat
+    state: present
+
+- name: Load kernel modules needed by container networking
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Persist kernel modules across reboots
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/kubernetes.conf
+    content: |
+      overlay
+      br_netfilter
+    mode: "0644"
+
+- name: Kubernetes sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-kubernetes.conf
+    state: present
+    reload: true
+  loop:
+    - { name: net.bridge.bridge-nf-call-iptables, value: "1" }
+    - { name: net.bridge.bridge-nf-call-ip6tables, value: "1" }
+    - { name: net.ipv4.ip_forward, value: "1" }
+
+# Calico and firewalld both program iptables; running both produces silent
+# drops that are miserable to debug. Lab policy: host firewall off, perimeter
+# is the home router, in-cluster segmentation is NetworkPolicy's job.
+- name: Disable firewalld
+  ansible.builtin.systemd_service:
+    name: firewalld
+    state: stopped
+    enabled: false
+
+# Permissive rather than disabled: AVC denials still get logged
+# (`ausearch -m avc`), so re-hardening to enforcing later is a contained
+# experiment instead of a leap of faith.
+- name: Set SELinux to permissive
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+
+# NetworkManager must not touch Calico's veth/tunnel interfaces or it will
+# tear down pod networking behind Calico's back.
+- name: Keep NetworkManager off Calico interfaces
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/calico.conf
+    content: |
+      [keyfile]
+      unmanaged-devices=interface-name:cali*;interface-name:tunl*;interface-name:vxlan.calico;interface-name:vxlan-v6.calico;interface-name:wireguard.cali*
+    mode: "0644"
+  notify: Reload NetworkManager

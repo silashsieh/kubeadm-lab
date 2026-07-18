@@ -1,15 +1,21 @@
 # Kubernetes minor to install — latest stable as of 2026-07 (patch 1.36.2).
-# The pkgs.k8s.io rpm repo is per-minor; upgrading the minor is a deliberate
-# act (edit this, then practice `kubeadm upgrade`), never an accident.
+# The pkgs.k8s.io rpm repo is per-minor; bumping this is a deliberate act
+# (edit, then practice `kubeadm upgrade`), never an accident.
 kubernetes_version: "1.36"
 
 pod_network_cidr: "10.244.0.0/16"
 service_cidr: "10.96.0.0/12"
 
-# Stable API endpoint for the HA control plane.
-# TODO(decide): kube-vip VIP vs external LB — see README "Open decisions".
-# Must be an address OUTSIDE the DHCP pool on 192.168.1.0/24.
-control_plane_endpoint: "192.168.1.250:6443"
+# HA API endpoint: kube-vip floats this VIP across the control-plane nodes
+# via leader election + gratuitous ARP. Sits outside the DHCP pool;
+# the nodes themselves are 192.168.1.61-65.
+kube_vip_address: "192.168.1.60"
+control_plane_endpoint: "192.168.1.60:6443"
+kube_vip_version: "v1.2.1"
+# Defaults to each node's default-route interface; override if the VMs'
+# NIC is named differently:
+# kube_vip_interface: enp0s1
 
-# TODO(decide): CNI — calico | flannel | cilium
-cni: calico
+# CNI: Calico in BGP / no-encapsulation mode — all nodes share one flat L2
+# subnet, so pod traffic routes natively (real pod IPs visible in tcpdump).
+calico_version: "v3.32.1"

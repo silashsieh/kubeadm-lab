@@ -1,5 +1,27 @@
-# TODO: kubeadm/kubelet/kubectl from pkgs.k8s.io:
-#   - add the per-minor rpm repo for {{ kubernetes_version }}
-#   - install kubelet/kubeadm/kubectl, dnf versionlock them
-#   - enable kubelet (it crash-loops until kubeadm init/join — that's expected)
-[]
+---
+- name: Add pkgs.k8s.io repo for v{{ kubernetes_version }}
+  ansible.builtin.yum_repository:
+    name: kubernetes
+    file: kubernetes
+    description: Kubernetes v{{ kubernetes_version }}
+    baseurl: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/rpm/"
+    gpgcheck: true
+    gpgkey: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/rpm/repodata/repomd.xml.key"
+    enabled: true
+    # Version pin: routine `dnf upgrade` can never touch the K8s packages;
+    # upgrades happen only through this playbook + `kubeadm upgrade`.
+    exclude: kubelet kubeadm kubectl cri-tools kubernetes-cni
+
+- name: Install kubelet, kubeadm, kubectl
+  ansible.builtin.dnf:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+    disable_excludes: kubernetes
+
+- name: Enable kubelet (crash-loops until init/join — expected)
+  ansible.builtin.systemd_service:
+    name: kubelet
+    enabled: true

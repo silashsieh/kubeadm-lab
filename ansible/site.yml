@@ -1,5 +1,4 @@
 # Converge the whole lab: bare kickstarted nodes -> HA kubeadm cluster.
-# Roles are stubs until the design discussion closes (CNI, API endpoint).
 - name: Prepare all nodes
   hosts: all
   become: true

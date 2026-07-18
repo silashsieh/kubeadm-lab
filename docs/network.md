@@ -26,8 +26,9 @@ on the router before first boot. IPs must match `ansible/inventory/hosts.yml`.
 
 ## Control-plane endpoint
 
-`192.168.1.250:6443` (placeholder) — must sit **outside the router's DHCP
-pool**. TODO: confirm the pool range and the kube-vip vs external-LB decision.
+`192.168.1.60:6443` — kube-vip VIP, floated across the three control-plane
+nodes (ARP mode + leader election). Outside the DHCP pool; nothing else may
+use this address.
 
 ## Known risks
 

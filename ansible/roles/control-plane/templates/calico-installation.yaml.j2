@@ -1,0 +1,22 @@
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    bgp: Enabled
+    ipPools:
+      - name: default-ipv4-ippool
+        blockSize: 26
+        cidr: {{ pod_network_cidr }}
+        # All five nodes share one flat L2 subnet: pure iBGP-distributed
+        # routes, no encapsulation — tcpdump shows real pod IPs on the wire.
+        encapsulation: None
+        natOutgoing: Enabled
+        nodeSelector: all()
+---
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}
