@@ -1,0 +1,8 @@
+# TODO: HA control plane (design pending — API endpoint decision):
+#   - first CP node: kubeadm init --control-plane-endpoint {{ control_plane_endpoint }}
+#     --pod-network-cidr {{ pod_network_cidr }} --upload-certs
+#   - kube-vip static pod manifest (if the VIP decision lands on kube-vip)
+#   - install the chosen CNI ({{ cni }})
+#   - remaining CP nodes: kubeadm join --control-plane with cert key
+#   - idempotency guard: skip init/join when /etc/kubernetes/kubelet.conf exists
+[]

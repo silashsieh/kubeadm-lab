@@ -1,0 +1,15 @@
+# Kubernetes minor to install — latest stable as of 2026-07 (patch 1.36.2).
+# The pkgs.k8s.io rpm repo is per-minor; upgrading the minor is a deliberate
+# act (edit this, then practice `kubeadm upgrade`), never an accident.
+kubernetes_version: "1.36"
+
+pod_network_cidr: "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
+
+# Stable API endpoint for the HA control plane.
+# TODO(decide): kube-vip VIP vs external LB — see README "Open decisions".
+# Must be an address OUTSIDE the DHCP pool on 192.168.1.0/24.
+control_plane_endpoint: "192.168.1.250:6443"
+
+# TODO(decide): CNI — calico | flannel | cilium
+cni: calico

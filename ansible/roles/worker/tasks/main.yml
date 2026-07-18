@@ -1,0 +1,4 @@
+# TODO: workers:
+#   - fetch a fresh join token from a CP node (kubeadm token create --print-join-command)
+#   - kubeadm join, guarded by /etc/kubernetes/kubelet.conf existence check
+[]

@@ -1,0 +1,9 @@
+# TODO: OS prep every node needs before anything K8s-shaped:
+#   - set hostname from inventory_hostname (identity arrives here, not in the image)
+#   - remove zram-generator-defaults + mask swap (kubelet refuses to start with swap on;
+#     plain `swapoff -a` does NOT survive reboot against Fedora's zram)
+#   - load br_netfilter + overlay kernel modules, persist in /etc/modules-load.d
+#   - sysctls: net.bridge.bridge-nf-call-iptables=1, net.ipv4.ip_forward=1
+#   - firewalld policy: open the kubeadm port matrix (6443, 2379-2380, 10250,
+#     NodePort range 30000-32767) + CNI ports, or disable — explicit either way
+[]

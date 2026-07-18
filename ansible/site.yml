@@ -1,0 +1,21 @@
+# Converge the whole lab: bare kickstarted nodes -> HA kubeadm cluster.
+# Roles are stubs until the design discussion closes (CNI, API endpoint).
+- name: Prepare all nodes
+  hosts: all
+  become: true
+  roles:
+    - common
+    - containerd
+    - kubeadm-install
+
+- name: Bootstrap HA control plane
+  hosts: control_plane
+  become: true
+  roles:
+    - control-plane
+
+- name: Join workers
+  hosts: workers
+  become: true
+  roles:
+    - worker

@@ -1,0 +1,6 @@
+# TODO: container runtime:
+#   - install containerd from Fedora repos
+#   - generate /etc/containerd/config.toml with SystemdCgroup = true
+#     (must match kubelet's cgroup driver; mismatch = cryptic kubelet crashloops)
+#   - enable + start containerd
+[]

@@ -12,9 +12,31 @@ A five-node Kubernetes home lab, provisioned the way on-prem fleets are:
 The OS layer is intentionally thin and swappable — the same playbooks should
 converge Fedora, Rocky, or Debian nodes.
 
+## Layout
+
+```
+kickstart/          generic ks.cfg + build-oemdrv.sh (macOS hdiutil → OEMDRV iso)
+ansible/            inventory, group_vars, site.yml, roles (stubs, TODO-annotated)
+docs/               network plan, UTM setup steps, experiment log
+```
+
+## Decisions so far
+
+- Nodes: 5 × UTM VMs (2 CPU / 4 GB / 25 GB, aarch64) across two Macs, bridged
+  onto 192.168.1.0/24; Fedora Server 44, identity via DHCP MAC reservations
+- Topology: 3 control-plane (stacked etcd) + 2 workers
+- Kubernetes: pinned to v1.36 (latest stable minor as of 2026-07)
+- Kickstart stays thin (user/SSH/python3 only); all convergence in Ansible
+
+## Open decisions
+
+- CNI: Calico vs Flannel vs Cilium (placeholder: Calico)
+- Control-plane endpoint: kube-vip VIP vs external load balancer
+
 ## Status
 
-Design phase — architecture under discussion, implementation not started.
+Design phase — skeleton laid out, roles are TODO stubs, implementation not
+started.
 
 ## License
 

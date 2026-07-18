@@ -1,0 +1,5 @@
+# TODO: kubeadm/kubelet/kubectl from pkgs.k8s.io:
+#   - add the per-minor rpm repo for {{ kubernetes_version }}
+#   - install kubelet/kubeadm/kubectl, dnf versionlock them
+#   - enable kubelet (it crash-loops until kubeadm init/join — that's expected)
+[]
