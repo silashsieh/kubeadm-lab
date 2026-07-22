@@ -33,6 +33,9 @@ docs/               network plan, UTM setup steps, experiment log
 
 ## Quickstart
 
+Full runbook (fresh nodes vs rebuild-in-place, verification, debugging
+order): **[docs/bring-up.md](docs/bring-up.md)**
+
 One-time on the control Mac:
 
 ```sh
