@@ -10,6 +10,11 @@
 - name: Bootstrap HA control plane
   hosts: control_plane
   become: true
+  # One CP node runs the whole role before the next starts. Load-bearing:
+  # every `upload-certs` re-encrypts the kubeadm-certs secret with a new
+  # key, so a join must follow ITS OWN upload with no other in between —
+  # and concurrent joins would also race etcd member addition.
+  serial: 1
   roles:
     - control-plane
 

@@ -18,6 +18,8 @@
       - kubelet
       - kubeadm
       - kubectl
+      # crictl — not pulled in automatically; indispensable for debugging
+      - cri-tools
     state: present
     disable_excludes: kubernetes
 

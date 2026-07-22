@@ -53,7 +53,11 @@ Then:
 
 ## Status
 
-Implemented, first end-to-end run pending.
+**Converged 2026-07-22**: 5 nodes, 3-member etcd HA control plane behind the
+kube-vip VIP, Calico BGP networking. Four runs to green — the three real
+bugs hit along the way (missing runc, upload-certs key race, host-sleep
+clock skew) are written up in
+[docs/experiments/2026-07-22-first-converge.md](docs/experiments/2026-07-22-first-converge.md).
 
 ## License
 

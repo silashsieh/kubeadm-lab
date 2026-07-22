@@ -17,6 +17,24 @@
   when: ansible_swaptotal_mb | int > 0
   changed_when: true
 
+# VM guests freeze their clocks while the host Mac sleeps, and Fedora's
+# default `makestep 1.0 3` only steps the clock right after boot — so a
+# laptop nap leaves nodes minutes behind forever. Skewed clocks break
+# kubeadm joins: certs minted on a correct-clock node read "not yet valid"
+# to a slow-clock etcd. `makestep 1.0 -1` = always step on >1s offset.
+- name: Always allow chrony to step the clock
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    regexp: '^makestep '
+    line: makestep 1.0 -1
+  notify: Restart chronyd
+
+- name: Ensure chronyd is enabled and running
+  ansible.builtin.systemd_service:
+    name: chronyd
+    enabled: true
+    state: started
+
 - name: Install host tools kubeadm/kube-proxy expect
   ansible.builtin.dnf:
     name:

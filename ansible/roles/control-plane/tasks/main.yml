@@ -69,6 +69,17 @@
       changed_when: tigera.rc == 0
       failed_when: tigera.rc != 0 and 'AlreadyExists' not in tigera.stderr
 
+    # `kubectl create` returns before the CRDs are usable; applying the CR
+    # immediately races registration ("no matches for kind Installation").
+    - name: Wait for the operator CRDs to be established
+      ansible.builtin.command: >
+        kubectl wait --for condition=established --timeout=90s
+        crd/installations.operator.tigera.io
+        crd/apiservers.operator.tigera.io
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      changed_when: false
+
     - name: Render Calico Installation CR
       ansible.builtin.template:
         src: calico-installation.yaml.j2
@@ -81,6 +92,9 @@
         KUBECONFIG: /etc/kubernetes/admin.conf
       register: calico_apply
       changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
+      retries: 5
+      delay: 10
+      until: calico_apply.rc == 0
 
     - name: Fetch admin kubeconfig to the control Mac (gitignored)
       ansible.builtin.fetch:
@@ -100,21 +114,22 @@
       register: join_command
       changed_when: false
 
+    # Depends on the play's `serial: 1`: this upload must be the newest one
+    # when the join below runs, or the certificate key cannot decrypt the
+    # kubeadm-certs secret.
     - name: Re-upload control-plane certs and capture the certificate key
       ansible.builtin.command: kubeadm init phase upload-certs --upload-certs
       delegate_to: "{{ groups['control_plane'][0] }}"
       register: cert_upload
       changed_when: false
 
-    # Concurrent control-plane joins race on etcd member addition.
-    - name: Join as control plane (one node at a time)
+    - name: Join as control plane
       ansible.builtin.command: >
         {{ join_command.stdout }}
         --control-plane
         --certificate-key {{ cert_upload.stdout_lines[-1] }}
       args:
         creates: /etc/kubernetes/kubelet.conf
-      throttle: 1
 
 # kubeadm preflight refuses a non-empty manifests dir, so on joining CP
 # nodes kube-vip lands AFTER the join — the VIP is already served by the

@@ -1,7 +1,12 @@
 ---
-- name: Install containerd
+# Fedora's containerd rpm does not hard-require an OCI runtime; without
+# runc every sandbox fails with 'exec: "runc": executable file not found'
+# and nothing — including etcd and the apiserver — can start.
+- name: Install containerd and runc
   ansible.builtin.dnf:
-    name: containerd
+    name:
+      - containerd
+      - runc
     state: present
 
 # Fedora's packaged config.toml historically ships with the CRI plugin

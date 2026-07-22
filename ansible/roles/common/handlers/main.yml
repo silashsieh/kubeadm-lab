@@ -3,3 +3,8 @@
   ansible.builtin.systemd_service:
     name: NetworkManager
     state: reloaded
+
+- name: Restart chronyd
+  ansible.builtin.systemd_service:
+    name: chronyd
+    state: restarted
