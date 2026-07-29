@@ -1,0 +1,19 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: lab-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - {{ metallb_pool_range }}
+---
+# L2 (ARP) announcements only — no BGPAdvertisement here on purpose;
+# Calico owns BGP on these nodes.
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: lab-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - lab-pool

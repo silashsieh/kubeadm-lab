@@ -23,3 +23,12 @@
   become: true
   roles:
     - worker
+
+# Addons live after bootstrap: unlike the CNI (which the control-plane role
+# installs because a cluster without it is broken mid-bootstrap), the
+# cluster is fully functional without them.
+- name: Install cluster addons
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - metallb

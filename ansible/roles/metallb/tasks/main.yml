@@ -1,0 +1,42 @@
+---
+# Install MetalLB (L2 mode) so `type: LoadBalancer` services get real IPs.
+# Runs on the first control-plane node only; everything is `kubectl apply`,
+# so re-running site.yml is safe.
+
+- name: Install MetalLB {{ metallb_version }} (native manifest)
+  ansible.builtin.command: >
+    kubectl apply -f
+    https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: metallb_apply
+  changed_when: "'created' in metallb_apply.stdout or 'configured' in metallb_apply.stdout"
+
+# MetalLB ships a validating webhook; an IPAddressPool applied before the
+# controller answers is rejected outright. Same shape as the Calico
+# wait-for-CRD guard.
+- name: Wait for the MetalLB controller (validating webhook) to be ready
+  ansible.builtin.command: >
+    kubectl wait --for condition=Available --timeout=180s
+    -n metallb-system deployment/controller
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: false
+
+- name: Render MetalLB address pool + L2 advertisement
+  ansible.builtin.template:
+    src: metallb-pool.yaml.j2
+    dest: /etc/kubernetes/metallb-pool.yaml
+    mode: "0600"
+
+# Retries: even after the Deployment is Available, the webhook's caBundle
+# can lag a few seconds behind.
+- name: Apply MetalLB pool CRs
+  ansible.builtin.command: kubectl apply -f /etc/kubernetes/metallb-pool.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: metallb_pool_apply
+  changed_when: "'created' in metallb_pool_apply.stdout or 'configured' in metallb_pool_apply.stdout"
+  retries: 5
+  delay: 10
+  until: metallb_pool_apply.rc == 0

@@ -30,6 +30,15 @@ on the router before first boot. IPs must match `ansible/inventory/hosts.yml`.
 nodes (ARP mode + leader election). Outside the DHCP pool; nothing else may
 use this address.
 
+## Service LoadBalancer pool
+
+`192.168.1.70`–`192.168.1.79` — MetalLB (L2/ARP mode) hands these out to
+`type: LoadBalancer` services. Like the VIP, this range must stay outside
+the router's DHCP pool and has no DHCP reservations; MetalLB answers ARP
+for whichever addresses are in use. If the router's DHCP pool overlaps,
+shrink it — an overlap fails intermittently (works until the router leases
+a colliding address).
+
 ## Known risks
 
 - **Bridged mode over Wi-Fi is unreliable.** Many APs drop frames from MAC

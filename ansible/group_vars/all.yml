@@ -19,3 +19,11 @@ kube_vip_version: "v1.2.1"
 # CNI: Calico in BGP / no-encapsulation mode — all nodes share one flat L2
 # subnet, so pod traffic routes natively (real pod IPs visible in tcpdump).
 calico_version: "v3.32.1"
+
+# Service LoadBalancer: MetalLB in L2 (ARP) mode — same announcement
+# mechanism as the kube-vip VIP. L2 rather than BGP because Calico already
+# owns BGP on these nodes and the two would fight over sessions.
+# Pool must stay outside the router's DHCP pool and clear of the VIP (.60)
+# and the nodes (.61-.65); see docs/network.md.
+metallb_version: "v0.16.0"
+metallb_pool_range: "192.168.1.70-192.168.1.79"
