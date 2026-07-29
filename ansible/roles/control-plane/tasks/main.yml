@@ -71,6 +71,9 @@
 
     # `kubectl create` returns before the CRDs are usable; applying the CR
     # immediately races registration ("no matches for kind Installation").
+    # Retries: `kubectl wait` errors NotFound outright (instead of waiting)
+    # if it runs before the apiserver's watch cache even shows the CRD —
+    # observed 80ms after a successful create.
     - name: Wait for the operator CRDs to be established
       ansible.builtin.command: >
         kubectl wait --for condition=established --timeout=90s
@@ -78,7 +81,11 @@
         crd/apiservers.operator.tigera.io
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
+      register: crd_wait
       changed_when: false
+      retries: 10
+      delay: 5
+      until: crd_wait.rc == 0
 
     - name: Render Calico Installation CR
       ansible.builtin.template:
