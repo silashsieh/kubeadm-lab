@@ -5,6 +5,12 @@ metadata:
 spec:
   calicoNetwork:
     bgp: Enabled
+    # Node addresses (BGP peering + route next-hops) come from the
+    # Thunderbolt NIC, not the default-route Wi-Fi NIC: macOS MAC-NATs
+    # bridged VM traffic on Wi-Fi and drops routed pod packets
+    # (see docs/network.md).
+    nodeAddressAutodetectionV4:
+      interface: {{ tb_interface }}
     ipPools:
       - name: default-ipv4-ippool
         blockSize: 26

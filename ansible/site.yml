@@ -4,6 +4,7 @@
   become: true
   roles:
     - common
+    - tb-network
     - containerd
     - kubeadm-install
 

@@ -20,6 +20,15 @@ kube_vip_version: "v1.2.1"
 # subnet, so pod traffic routes natively (real pod IPs visible in tcpdump).
 calico_version: "v3.32.1"
 
+# Cluster-traffic network: direct Thunderbolt cable between the two Macs
+# (each Mac's bridge0 + the VMs' second NICs spliced in). Needed because
+# macOS MAC-NATs bridged VMs on Wi-Fi and silently drops routed pod-CIDR
+# packets; Calico autodetects node addresses from this NIC instead.
+# SSH/Ansible/node identity stay on Wi-Fi. See docs/network.md.
+tb_interface: enp0s2
+# Mirror each node's Wi-Fi last octet onto the TB subnet: .61 -> 10.10.0.61
+tb_ip: "10.10.0.{{ ansible_host.split('.') | last }}"
+
 # Service LoadBalancer: MetalLB in L2 (ARP) mode — same announcement
 # mechanism as the kube-vip VIP. L2 rather than BGP because Calico already
 # owns BGP on these nodes and the two would fight over sessions.

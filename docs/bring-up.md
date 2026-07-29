@@ -22,13 +22,17 @@ must stay outside the DHCP pool.
    rebuild whenever the key or ks.cfg changes).
 2. Create/replace the five UTM VMs per `docs/utm-setup.md` — 2 CPU / 4 GiB /
    25 GB, bridged, note each MAC, attach Fedora installer ISO + oemdrv.iso.
+   Add a second NIC in **Host Only** mode (the Thunderbolt cluster network;
+   `docs/network.md`).
 3. Boot. Installs are unattended (~5 min each, parallel is fine); VMs reboot
    into the installed OS. Detach both ISOs afterwards — a VM that boots the
    installer again will happily re-kickstart itself and wipe the node.
-4. Sanity: `cd ansible && ansible all -m ping` — all five must answer.
-5. `ansible-playbook site.yml` (~10–15 min: packages, serial control-plane
+4. On each Mac: `sudo ./scripts/tb-splice.sh` — attaches the VMs' second
+   NICs to the Thunderbolt Bridge. Needed again after every VM restart.
+5. Sanity: `cd ansible && ansible all -m ping` — all five must answer.
+6. `ansible-playbook site.yml` (~10–15 min: packages, serial control-plane
    bootstrap, Calico, workers).
-6. Verify (below).
+7. Verify (below).
 
 ## Path B — rebuild the cluster, keep the OS
 

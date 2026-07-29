@@ -19,7 +19,14 @@ running headless; they just can't be managed meanwhile.
 
 ## Bring-up
 
-Start the VMs in UTM — that's all. Everything is systemd-enabled: kubelet
+Start the VMs in UTM, then re-splice their Thunderbolt NICs on **each**
+Mac (the splice never survives a VM stop — see `docs/network.md`):
+
+```sh
+sudo ./scripts/tb-splice.sh
+```
+
+Everything else is automatic and systemd-enabled: kubelet
 finds the static-pod manifests, etcd re-forms quorum once 2 of 3 CP nodes
 are up, kube-vip re-elects and re-claims the VIP, workers reconnect. Start
 the three CP nodes roughly together, workers whenever. Allow 2–3 minutes,

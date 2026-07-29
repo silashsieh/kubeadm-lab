@@ -1,0 +1,42 @@
+---
+# Static addressing for the Thunderbolt cluster network (docs/network.md).
+# The TB NIC carries pod/BGP traffic only: never-default keeps Wi-Fi as
+# the default route, so SSH, Ansible, and node identity stay on 192.168.1.x.
+
+- name: Read configured address of the tb connection
+  ansible.builtin.command: nmcli -g ipv4.addresses connection show tb
+  register: tb_addr
+  failed_when: false
+  changed_when: false
+
+- name: Create tb connection ({{ tb_ip }}/24 on {{ tb_interface }})
+  ansible.builtin.command: >
+    nmcli connection add type ethernet con-name tb ifname {{ tb_interface }}
+    ipv4.method manual ipv4.addresses {{ tb_ip }}/24
+    ipv4.never-default yes ipv6.method disabled
+    connection.autoconnect yes
+  register: tb_create
+  when: tb_addr.rc != 0
+
+- name: Correct tb connection address
+  ansible.builtin.command: >
+    nmcli connection modify tb
+    ipv4.addresses {{ tb_ip }}/24 ipv4.never-default yes ipv6.method disabled
+  register: tb_mod
+  when:
+    - tb_addr.rc == 0
+    - tb_addr.stdout | trim != tb_ip ~ '/24'
+
+- name: Read runtime address on {{ tb_interface }}
+  ansible.builtin.command: ip -4 addr show {{ tb_interface }}
+  register: tb_runtime
+  failed_when: false
+  changed_when: false
+
+# Fails if the VM has no {{ tb_interface }} — deliberate: it means the
+# VM's second NIC is missing/detached and the node must not join Calico.
+- name: Activate tb connection
+  ansible.builtin.command: nmcli connection up tb
+  when: >
+    (tb_create is changed) or (tb_mod is changed)
+    or (tb_ip ~ '/24' not in tb_runtime.stdout)
