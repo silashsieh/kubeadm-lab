@@ -14,7 +14,7 @@
 
 - name: Turn off any active swap for this boot
   ansible.builtin.command: swapoff -a
-  when: ansible_swaptotal_mb | int > 0
+  when: ansible_facts['swaptotal_mb'] | int > 0
   changed_when: true
 
 # VM guests freeze their clocks while the host Mac sleeps, and Fedora's

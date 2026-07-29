@@ -18,7 +18,7 @@ spec:
         - name: vip_arp
           value: "true"
         - name: vip_interface
-          value: "{{ kube_vip_interface | default(ansible_default_ipv4.interface) }}"
+          value: "{{ kube_vip_interface | default(ansible_facts['default_ipv4']['interface']) }}"
         - name: vip_cidr
           value: "32"
         - name: cp_enable
