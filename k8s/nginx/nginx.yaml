@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: nginx-service
 spec:
+  # MetalLB (L2) assigns an address from lab-pool: 192.168.1.70-79
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: proxy
   ports:
