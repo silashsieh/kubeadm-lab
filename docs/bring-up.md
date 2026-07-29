@@ -45,10 +45,22 @@ ansible all -b -m command -a "kubeadm reset -f"
 ansible-playbook site.yml
 ```
 
-`kubeadm reset` leaves some iptables/CNI debris behind; the playbook
-tolerates it, but if pod networking acts haunted after a rebuild, reboot the
-nodes once (`ansible all -b -m reboot`) and rerun the playbook — it's
-idempotent, rerunning is always safe.
+The wall of `connection refused` CNI errors during reset is normal: all
+five nodes reset at once, so the API is dead before Calico's per-pod
+delete hooks run. kubeadm logs each failure and finishes anyway.
+
+`kubeadm reset` leaves debris behind:
+
+- **iptables/CNI rules** — tolerated by the playbook; if pod networking
+  acts haunted after a rebuild, reboot the nodes once
+  (`ansible all -b -m reboot`) and rerun the playbook — it's idempotent,
+  rerunning is always safe.
+- **The kube-vip VIP itself** — reset kills kube-vip before it releases
+  192.168.1.60 from the old leader's NIC, so the address survives and
+  ARP-fights the new cluster's VIP: API calls flakily get
+  connection-refused mid-converge (bootstrap fails on cp1 while the VIP
+  health check just passed). The playbook now scrubs any VIP found on a
+  node with no kubelet.conf before the serial bootstrap.
 
 ## Verify
 

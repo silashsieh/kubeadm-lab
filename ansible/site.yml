@@ -8,6 +8,32 @@
     - containerd
     - kubeadm-install
 
+# kubeadm reset stops kubelet and kills containers outright, so kube-vip
+# on the old leader never releases the VIP: the address survives on its
+# NIC and ARP-fights the next cluster's kube-vip (API calls to the VIP
+# get connection-refused at random, mid-converge). A separate play, not
+# part of the serial bootstrap below: the stale holder may be cp3 while
+# cp1 is the one initializing against the VIP.
+- name: Scrub stale kube-vip VIPs left by kubeadm reset
+  hosts: control_plane
+  become: true
+  tasks:
+    - name: Check whether this node is part of a cluster
+      ansible.builtin.stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: scrub_kubelet_conf
+
+    # No kubelet.conf means this node cannot be a legitimate VIP holder.
+    - name: Remove stale VIP from the node interface
+      ansible.builtin.shell: |
+        if ip -4 addr show | grep -qF "inet {{ kube_vip_address }}/"; then
+          ip addr del {{ kube_vip_address }}/32 dev {{ kube_vip_interface | default(ansible_facts['default_ipv4']['interface']) }}
+          echo removed
+        fi
+      register: stale_vip
+      changed_when: "'removed' in stale_vip.stdout"
+      when: not scrub_kubelet_conf.stat.exists
+
 - name: Bootstrap HA control plane
   hosts: control_plane
   become: true
